@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { loadNominations, getNomineeByUUID } from "@/lib/data";
+import { fetchNomineeByUUID } from "@/app/actions";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Best Innovator Award": "bg-amber-100 text-amber-800",
@@ -26,20 +26,14 @@ export default function NomineePage() {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    const nominations = loadNominations();
-    if (!nominations) {
-      setNotFound(true);
+    fetchNomineeByUUID(id).then((found) => {
+      if (!found) {
+        setNotFound(true);
+      } else {
+        setNominee(found);
+      }
       setLoading(false);
-      return;
-    }
-    const found = getNomineeByUUID(nominations, id);
-    if (!found) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    setNominee(found);
-    setLoading(false);
+    });
   }, [id]);
 
   if (loading) return null;

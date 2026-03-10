@@ -2,16 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { type Nomination, type NomineeStats, type CategoryLeaderboard, parseCSV } from "@/lib/data";
 import {
-  type Nomination,
-  parseCSV,
-  saveNominations,
-  loadNominations,
-  clearNominations,
-  getGeneralLeaderboard,
-  getCategoryLeaderboards,
-  mergeNominees,
-} from "@/lib/data";
+  type DashboardData,
+  loadDashboardData,
+  uploadNominations,
+  resetNominations,
+  mergeNomineesAction,
+} from "@/app/actions";
 
 const MEDAL = ["\u{1F947}", "\u{1F948}", "\u{1F949}"];
 
@@ -55,7 +53,7 @@ function CopyLinkButton({ path }: { path: string }) {
 }
 
 export default function Home() {
-  const [nominations, setNominations] = useState<Nomination[] | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [mergeMode, setMergeMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -64,18 +62,19 @@ export default function Home() {
   const mergeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setNominations(loadNominations());
-    setHydrated(true);
+    loadDashboardData()
+      .then((data) => setDashboard(data))
+      .finally(() => setHydrated(true));
   }, []);
 
-  const handleCSVLoaded = useCallback((noms: Nomination[]) => {
-    saveNominations(noms);
-    setNominations(noms);
+  const handleCSVLoaded = useCallback(async (noms: Nomination[]) => {
+    const data = await uploadNominations(noms);
+    setDashboard(data);
   }, []);
 
-  const handleReset = useCallback(() => {
-    clearNominations();
-    setNominations(null);
+  const handleReset = useCallback(async () => {
+    await resetNominations();
+    setDashboard(null);
   }, []);
 
   const toggleSelect = useCallback((name: string) => {
@@ -101,21 +100,23 @@ export default function Home() {
     setTimeout(() => mergeInputRef.current?.select(), 50);
   }, [selected]);
 
-  const handleMerge = useCallback(() => {
-    if (!nominations || selected.size < 2 || !mergedName.trim()) return;
-    const updated = mergeNominees(nominations, Array.from(selected), mergedName.trim());
-    setNominations(updated);
+  const handleMerge = useCallback(async () => {
+    if (!dashboard || selected.size < 2 || !mergedName.trim()) return;
+    const data = await mergeNomineesAction(
+      Array.from(selected),
+      mergedName.trim()
+    );
+    setDashboard(data);
     exitMergeMode();
-  }, [nominations, selected, mergedName, exitMergeMode]);
+  }, [dashboard, selected, mergedName, exitMergeMode]);
 
   if (!hydrated) return null;
 
-  if (!nominations) {
+  if (!dashboard) {
     return <UploadView onCSVLoaded={handleCSVLoaded} />;
   }
 
-  const leaderboard = getGeneralLeaderboard(nominations);
-  const categoryBoards = getCategoryLeaderboards(nominations);
+  const { leaderboard, categoryBoards } = dashboard;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
