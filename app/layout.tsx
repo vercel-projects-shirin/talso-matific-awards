@@ -8,8 +8,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Tal's Matific Awards",
-  description: "Welcome to Tal's Matific Awards",
+  title: "Matific Awards",
+  description: "Celebrating the people who make Matific great",
 };
 
 export default function RootLayout({
@@ -19,9 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} antialiased`}>
-        {children}
-      </body>
+      <body className={`${geistSans.variable} antialiased`}>{children}</body>
     </html>
   );
 }
