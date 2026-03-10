@@ -10,7 +10,7 @@ export interface Nomination {
 export interface NomineeStats {
   name: string;
   count: number;
-  slug: string;
+  id: string;
 }
 
 export interface CategoryLeaderboard {
@@ -19,6 +19,7 @@ export interface CategoryLeaderboard {
 }
 
 const STORAGE_KEY = "matific-awards-nominations";
+const UUID_MAP_KEY = "matific-awards-nominee-uuids";
 
 function parseCSVLine(line: string): string[] {
   const fields: string[] = [];
@@ -45,11 +46,35 @@ function parseCSVLine(line: string): string[] {
   return fields;
 }
 
-export function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+export function loadNomineeUUIDMap(): Record<string, string> {
+  const raw = localStorage.getItem(UUID_MAP_KEY);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+export function saveNomineeUUIDMap(map: Record<string, string>) {
+  localStorage.setItem(UUID_MAP_KEY, JSON.stringify(map));
+}
+
+export function getOrCreateNomineeUUID(name: string): string {
+  const map = loadNomineeUUIDMap();
+  if (map[name]) return map[name];
+  const id = crypto.randomUUID();
+  map[name] = id;
+  saveNomineeUUIDMap(map);
+  return id;
+}
+
+export function getNomineeNameByUUID(uuid: string): string | null {
+  const map = loadNomineeUUIDMap();
+  for (const [name, id] of Object.entries(map)) {
+    if (id === uuid) return name;
+  }
+  return null;
 }
 
 export function parseCSV(content: string): Nomination[] {
@@ -83,6 +108,7 @@ export function loadNominations(): Nomination[] | null {
 
 export function clearNominations() {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(UUID_MAP_KEY);
 }
 
 export function getGeneralLeaderboard(
@@ -93,7 +119,7 @@ export function getGeneralLeaderboard(
     counts.set(n.nomineeName, (counts.get(n.nomineeName) ?? 0) + 1);
   }
   return Array.from(counts.entries())
-    .map(([name, count]) => ({ name, count, slug: slugify(name) }))
+    .map(([name, count]) => ({ name, count, id: getOrCreateNomineeUUID(name) }))
     .sort((a, b) => b.count - a.count);
 }
 
@@ -111,14 +137,16 @@ export function getCategoryLeaderboards(
   return Array.from(categories.entries()).map(([category, nominees]) => ({
     category,
     nominees: Array.from(nominees.entries())
-      .map(([name, count]) => ({ name, count, slug: slugify(name) }))
+      .map(([name, count]) => ({ name, count, id: getOrCreateNomineeUUID(name) }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 3),
   }));
 }
 
-export function getNomineeBySlug(nominations: Nomination[], slug: string) {
-  const matched = nominations.filter((n) => slugify(n.nomineeName) === slug);
+export function getNomineeByUUID(nominations: Nomination[], uuid: string) {
+  const name = getNomineeNameByUUID(uuid);
+  if (!name) return null;
+  const matched = nominations.filter((n) => n.nomineeName === name);
   if (matched.length === 0) return null;
   return {
     name: matched[0].nomineeName,

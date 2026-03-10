@@ -14,6 +14,45 @@ import {
 
 const MEDAL = ["\u{1F947}", "\u{1F948}", "\u{1F949}"];
 
+function CopyLinkButton({ path }: { path: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    const url = `${window.location.origin}${path}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [path]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-sm transition-colors ${
+        copied
+          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+      }`}
+    >
+      {copied ? (
+        <>
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Copied!
+        </>
+      ) : (
+        <>
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          Copy link
+        </>
+      )}
+    </button>
+  );
+}
+
 export default function Home() {
   const [nominations, setNominations] = useState<Nomination[] | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -92,7 +131,7 @@ export default function Home() {
             <tbody>
               {leaderboard.map((entry, i) => (
                 <tr
-                  key={entry.slug}
+                  key={entry.id}
                   className={`border-t border-gray-100 transition-colors hover:bg-indigo-50 ${
                     i < 3 ? "bg-indigo-50/40 font-semibold" : ""
                   }`}
@@ -131,7 +170,7 @@ export default function Home() {
               </h3>
               <ol className="space-y-3">
                 {board.nominees.map((entry, i) => (
-                  <li key={entry.slug} className="flex items-center gap-3">
+                  <li key={entry.id} className="flex items-center gap-3">
                     <span className="text-xl">{MEDAL[i] ?? `${i + 1}.`}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-gray-900">
@@ -170,7 +209,7 @@ export default function Home() {
             <tbody>
               {leaderboard.map((entry) => (
                 <tr
-                  key={entry.slug}
+                  key={entry.id}
                   className="border-t border-gray-100 transition-colors hover:bg-gray-50"
                 >
                   <td className="px-6 py-3 text-sm font-medium text-gray-900">
@@ -180,12 +219,15 @@ export default function Home() {
                     {entry.count}
                   </td>
                   <td className="px-6 py-3 text-right">
-                    <Link
-                      href={`/nominee/${entry.slug}`}
-                      className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
-                    >
-                      View →
-                    </Link>
+                    <div className="inline-flex items-center gap-2">
+                      <CopyLinkButton path={`/nominee/${entry.id}`} />
+                      <Link
+                        href={`/nominee/${entry.id}`}
+                        className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
+                      >
+                        View →
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
