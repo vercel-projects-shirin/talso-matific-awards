@@ -143,6 +143,28 @@ export function getCategoryLeaderboards(
   }));
 }
 
+export function mergeNominees(
+  nominations: Nomination[],
+  oldNames: string[],
+  newName: string
+): Nomination[] {
+  const nameSet = new Set(oldNames);
+  const updated = nominations.map((n) =>
+    nameSet.has(n.nomineeName) ? { ...n, nomineeName: newName } : n
+  );
+
+  const uuidMap = loadNomineeUUIDMap();
+  const keepUUID = uuidMap[oldNames[0]] ?? crypto.randomUUID();
+  for (const name of oldNames) {
+    delete uuidMap[name];
+  }
+  uuidMap[newName] = keepUUID;
+  saveNomineeUUIDMap(uuidMap);
+
+  saveNominations(updated);
+  return updated;
+}
+
 export function getNomineeByUUID(nominations: Nomination[], uuid: string) {
   const name = getNomineeNameByUUID(uuid);
   if (!name) return null;

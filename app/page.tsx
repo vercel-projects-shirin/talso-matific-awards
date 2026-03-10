@@ -10,6 +10,7 @@ import {
   clearNominations,
   getGeneralLeaderboard,
   getCategoryLeaderboards,
+  mergeNominees,
 } from "@/lib/data";
 
 const MEDAL = ["\u{1F947}", "\u{1F948}", "\u{1F949}"];
@@ -56,6 +57,11 @@ function CopyLinkButton({ path }: { path: string }) {
 export default function Home() {
   const [nominations, setNominations] = useState<Nomination[] | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [mergeMode, setMergeMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showMergePrompt, setShowMergePrompt] = useState(false);
+  const [mergedName, setMergedName] = useState("");
+  const mergeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNominations(loadNominations());
@@ -71,6 +77,36 @@ export default function Home() {
     clearNominations();
     setNominations(null);
   }, []);
+
+  const toggleSelect = useCallback((name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
+  const exitMergeMode = useCallback(() => {
+    setMergeMode(false);
+    setSelected(new Set());
+    setShowMergePrompt(false);
+    setMergedName("");
+  }, []);
+
+  const openMergePrompt = useCallback(() => {
+    const firstSelected = Array.from(selected)[0] ?? "";
+    setMergedName(firstSelected);
+    setShowMergePrompt(true);
+    setTimeout(() => mergeInputRef.current?.select(), 50);
+  }, [selected]);
+
+  const handleMerge = useCallback(() => {
+    if (!nominations || selected.size < 2 || !mergedName.trim()) return;
+    const updated = mergeNominees(nominations, Array.from(selected), mergedName.trim());
+    setNominations(updated);
+    exitMergeMode();
+  }, [nominations, selected, mergedName, exitMergeMode]);
 
   if (!hydrated) return null;
 
@@ -114,13 +150,41 @@ export default function Home() {
 
       {/* General Leaderboard */}
       <section className="mb-14">
-        <h2 className="mb-6 text-2xl font-bold text-gray-800">
-          General Leaderboard
-        </h2>
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-800">
+            General Leaderboard
+          </h2>
+          {!mergeMode ? (
+            <button
+              onClick={() => setMergeMode(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              Merge Nominees
+            </button>
+          ) : (
+            <button
+              onClick={exitMergeMode}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+
+        {mergeMode && (
+          <p className="mb-3 text-sm text-gray-500">
+            Select the nominees you want to merge, then click &quot;Merge into one&quot;.
+          </p>
+        )}
+
         <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+                {mergeMode && <th className="w-10 px-4 py-3" />}
                 <th className="px-6 py-3 text-sm font-semibold">#</th>
                 <th className="px-6 py-3 text-sm font-semibold">Nominee</th>
                 <th className="px-6 py-3 text-right text-sm font-semibold">
@@ -129,30 +193,102 @@ export default function Home() {
               </tr>
             </thead>
             <tbody>
-              {leaderboard.map((entry, i) => (
-                <tr
-                  key={entry.id}
-                  className={`border-t border-gray-100 transition-colors hover:bg-indigo-50 ${
-                    i < 3 ? "bg-indigo-50/40 font-semibold" : ""
-                  }`}
-                >
-                  <td className="px-6 py-3 text-sm text-gray-500">
-                    {i < 3 ? MEDAL[i] : i + 1}
-                  </td>
-                  <td className="px-6 py-3 text-sm text-gray-900">
-                    {entry.name}
-                  </td>
-                  <td className="px-6 py-3 text-right text-sm">
-                    <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-0.5 text-indigo-700">
-                      {entry.count}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {leaderboard.map((entry, i) => {
+                const isSelected = selected.has(entry.name);
+                return (
+                  <tr
+                    key={entry.id}
+                    onClick={mergeMode ? () => toggleSelect(entry.name) : undefined}
+                    className={`border-t border-gray-100 transition-colors ${
+                      mergeMode ? "cursor-pointer" : ""
+                    } ${
+                      isSelected
+                        ? "bg-indigo-100"
+                        : i < 3
+                        ? "bg-indigo-50/40 font-semibold hover:bg-indigo-50"
+                        : "hover:bg-indigo-50"
+                    }`}
+                  >
+                    {mergeMode && (
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          className="h-4 w-4 rounded border-gray-300 text-indigo-600 pointer-events-none"
+                        />
+                      </td>
+                    )}
+                    <td className="px-6 py-3 text-sm text-gray-500">
+                      {i < 3 ? MEDAL[i] : i + 1}
+                    </td>
+                    <td className="px-6 py-3 text-sm text-gray-900">
+                      {entry.name}
+                    </td>
+                    <td className="px-6 py-3 text-right text-sm">
+                      <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-0.5 text-indigo-700">
+                        {entry.count}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+
+        {mergeMode && selected.size >= 2 && (
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={openMergePrompt}
+              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
+            >
+              Merge {selected.size} nominees into one
+            </button>
+          </div>
+        )}
       </section>
+
+      {/* Merge Name Prompt Modal */}
+      {showMergePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">Merge Nominees</h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Merging: {Array.from(selected).join(", ")}
+            </p>
+            <label className="mt-4 block text-sm font-medium text-gray-700">
+              New nominee name
+            </label>
+            <input
+              ref={mergeInputRef}
+              type="text"
+              value={mergedName}
+              onChange={(e) => setMergedName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && mergedName.trim()) handleMerge();
+                if (e.key === "Escape") setShowMergePrompt(false);
+              }}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setShowMergePrompt(false)}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMerge}
+                disabled={!mergedName.trim()}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
+              >
+                Confirm Merge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Category Leaderboards */}
       <section className="mb-14">
