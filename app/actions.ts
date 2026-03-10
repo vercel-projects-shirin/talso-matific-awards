@@ -1,5 +1,7 @@
 "use server";
 
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import type { Nomination, NomineeStats, CategoryLeaderboard } from "@/lib/data";
 import {
   dbSaveNominations,
@@ -10,6 +12,7 @@ import {
   dbMergeNominees,
   dbGetNomineeByUUID,
 } from "@/lib/db";
+import { verifyCredentials, createSession, deleteSession } from "@/lib/auth";
 
 export interface DashboardData {
   nominations: Nomination[];
@@ -55,4 +58,42 @@ export async function fetchNomineeByUUID(uuid: string): Promise<{
   nominations: { category: string; reason: string; nominatorName: string }[];
 } | null> {
   return dbGetNomineeByUUID(uuid);
+}
+
+const THIRTY_DAYS_S = 30 * 24 * 60 * 60;
+
+export async function loginAction(
+  email: string,
+  password: string
+): Promise<{ error: string } | undefined> {
+  const user = await verifyCredentials(email, password);
+
+  if (!user) {
+    return { error: "Invalid email or password" };
+  }
+
+  const token = await createSession(user.id);
+
+  const cookieStore = await cookies();
+  cookieStore.set("session_token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: THIRTY_DAYS_S,
+  });
+
+  redirect("/");
+}
+
+export async function logoutAction(): Promise<void> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session_token")?.value;
+
+  if (token) {
+    await deleteSession(token);
+  }
+
+  cookieStore.delete("session_token");
+  redirect("/login");
 }
